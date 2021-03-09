@@ -177,6 +177,7 @@ class RSCSV_Import_Post_Helper
             if (!$is_acf && !$is_cfs && !$is_scf) {
                 $this->updateMeta($key, $value);
             }
+            print_r("import post helper key :::::" . $key);
         }
         $this->scfSave($scf_array);
     }

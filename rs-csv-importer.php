@@ -214,7 +214,7 @@ class RS_CSV_Importer extends WP_Importer {
 				}
 
 				// (string) post title
-				$post_title = $h->get_data($this,$data,'post_title');
+				$post_title = $h->get_data($this,$data,'partDescription');
 				if ($post_title) {
 
 					if ( ! $is_update && $_POST['replace-by-title'] == 1 ) {
@@ -342,20 +342,41 @@ class RS_CSV_Importer extends WP_Importer {
 				foreach ($data as $key => $value) {
 					if ($value !== false && isset($this->column_keys[$key])) {
 						// check if meta is custom taxonomy
-						if (substr($this->column_keys[$key], 0, 4) == 'tax_') {
-							// (string, comma divided) name of custom taxonomies 
-							$customtaxes = preg_split("/,+/", $value);
-							$taxname = substr($this->column_keys[$key], 4);
-							$tax[$taxname] = array();
-							foreach($customtaxes as $key => $value ) {
-								$tax[$taxname][] = $value;
+						// if (substr($this->column_keys[$key], 0, 4) == 'tax_') {
+						// 	// (string, comma divided) name of custom taxonomies 
+						// 	$customtaxes = preg_split("/,+/", $value);
+						// 	$taxname = substr($this->column_keys[$key], 4);
+						// 	$tax[$taxname] = array();
+						// 	foreach($customtaxes as $key => $value ) {
+						// 		$tax[$taxname][] = $value;
+						// 	}
+						// }
+						// else {
+							// $meta[$this->column_keys[$key]] = $value;
+						// }
+						if($this->column_keys[$key]==="punctuatedPartNumber"){
+							$temp = "";
+							for($i = 0; $i < strlen($value); $i++ ){
+								if(is_numeric(substr($value, $i, 1))){
+									$temp = $temp . substr($value, $i, 1);
+								}
 							}
+							$meta["SKU"] = $temp;
 						}
-						else {
-							$meta[$this->column_keys[$key]] = $value;
+						if($this->column_keys[$key]==="brandName"){
+							$meta["Brand"] = $value;
 						}
+						if($this->column_keys[$key]==="supplierNumber"){
+							$meta["MPN"] = $value;
+						}
+						if($this->column_keys[$key]==="baseDealerPrice"){
+							$meta["price"] = $value;
+						}
+
 					}
-				}
+				}   //// KMS
+
+				// print_r ("csv import :::" . $meta);
 				
 				/**
 				 * Filter post data.
