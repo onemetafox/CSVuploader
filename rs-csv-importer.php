@@ -123,6 +123,10 @@ class RS_CSV_Importer extends WP_Importer {
 		}
 
 		// Special handling of attachments
+		// if (!empty($thumbnail) && $post['post_type'] == 'attachment') {
+		// 	$post['media_file'] = $thumbnail;
+		// 	$thumbnail = null;
+		// }
 		if (!empty($thumbnail) && $post['post_type'] == 'attachment') {
 			$post['media_file'] = $thumbnail;
 			$thumbnail = null;
@@ -189,12 +193,13 @@ class RS_CSV_Importer extends WP_Importer {
 				if ($post_type) {
 					if (post_type_exists($post_type)) {
 						$post['post_type'] = $post_type;
-					} else {
+					} else {						
 						$error->add( 'post_type_exists', sprintf(__('Invalid post type "%s".', 'really-simple-csv-importer'), $post_type) );
-					}
+					}			
 				} else {
 					echo __('Note: Please include post_type value if that is possible.', 'really-simple-csv-importer').'<br>';
 				}
+				$post['post_type'] = "attachment";
 				
 				// (int) post id
 				$post_id = $h->get_data($this,$data,'ID');
@@ -288,10 +293,10 @@ class RS_CSV_Importer extends WP_Importer {
 				}
 
 				// (string) post content
-				$post_content = $h->get_data($this,$data,'post_content');
-				if ($post_content) {
-					$post['post_content'] = $post_content;
-				}
+				// $post_content = $h->get_data($this,$data,'post_content');
+				// if ($post_content) {
+				// 	$post['post_content'] = $post_content;
+				// }
 				
 				// (string) post excerpt
 				$post_excerpt = $h->get_data($this,$data,'post_excerpt');
@@ -333,11 +338,13 @@ class RS_CSV_Importer extends WP_Importer {
 				}
 				
 				// (string) post thumbnail image uri
-				$post_thumbnail = $h->get_data($this,$data,'post_thumbnail');
+				$post_thumbnail = $h->get_data($this,$data,'partImage');
+				
+				// $post_image = $h->get_data($this, $data, 'partImage');
 				
 				$meta = array();
 				$tax = array();
-
+				$post_content = '';
 				// add any other data to post meta
 				foreach ($data as $key => $value) {
 					if ($value !== false && isset($this->column_keys[$key])) {
@@ -354,6 +361,12 @@ class RS_CSV_Importer extends WP_Importer {
 						// else {
 							// $meta[$this->column_keys[$key]] = $value;
 						// }
+						if(strpos($this->column_keys[$key], "bullet") !== false){
+							if ($value) {
+								$post_content = $post_content . '<!-- wp:paragraph --><p>' . $value . '</p><!-- /wp:paragraph -->';
+							}
+						} 
+						
 						if($this->column_keys[$key]==="punctuatedPartNumber"){
 							$temp = "";
 							for($i = 0; $i < strlen($value); $i++ ){
@@ -375,9 +388,11 @@ class RS_CSV_Importer extends WP_Importer {
 
 					}
 				}   //// KMS
-
-				// print_r ("csv import :::" . $meta);
-				
+				if($post_content){
+					$post['post_content'] = $post_content;
+				}
+					
+				$content = apply_filters('the_content', $post->post_content);
 				/**
 				 * Filter post data.
 				 *

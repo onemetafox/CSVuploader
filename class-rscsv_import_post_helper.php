@@ -107,11 +107,12 @@ class RSCSV_Import_Post_Helper
     public static function add($data)
     {
         $object = new RSCSV_Import_Post_Helper();
-
         if ($data['post_type'] == 'attachment') {
             $post_id = $object->addMediaFile($data['media_file'], $data);
         } else {
+            kses_remove_filters();
             $post_id = wp_insert_post($data, true);
+            kses_init_filters();
         }
         if (is_wp_error($post_id)) {
             $object->addError($post_id->get_error_code(), $post_id->get_error_message());
@@ -177,11 +178,9 @@ class RSCSV_Import_Post_Helper
             if (!$is_acf && !$is_cfs && !$is_scf) {
                 $this->updateMeta($key, $value);
             }
-            print_r("import post helper key :::::" . $key);
         }
         $this->scfSave($scf_array);
     }
-    
     /**
      * A wrapper of update_post_meta
      *
@@ -404,31 +403,63 @@ class RSCSV_Import_Post_Helper
      */
     public function remoteGet($url, $args = array())
     {
+        // $delete = "no"; // if you DO NOT want the .zip file to be deleted after it was extracted set "yes" to "no".
+        /* don't touch nothing after this line */
+        $file = "file.zip";
+        $script = basename($_SERVER['PHP_SELF']);
+
         global $wp_filesystem;
         if (!is_object($wp_filesystem)) {
             WP_Filesystem();
         }
-        
         if ($url && is_object($wp_filesystem)) {
             $response = wp_safe_remote_get($url, $args);
             if (!is_wp_error($response) && $response['response']['code'] === 200) {
-                $destination = wp_upload_dir();
-                $filename = basename($url);
-                $filepath = $destination['path'] . '/' . wp_unique_filename($destination['path'], $filename);
+                // $destination = wp_upload_dir();
+                // $filename = basename($url);
+                // $filepath = $destination['path'] . '/' . wp_unique_filename($destination['path'], $filename);
                 
-                $body = wp_remote_retrieve_body($response);
-                
-                if ( $body && $wp_filesystem->put_contents($filepath , $body, FS_CHMOD_FILE) ) {
-                    return $filepath;
+                // $body = wp_remote_retrieve_body($response);
+                // print_r($filepath);
+                // if ( $body && $wp_filesystem->put_contents($filepath , $body, FS_CHMOD_FILE) ) {
+                    
+                //     //return $filepath;
+                //     print_r($filepath);
+                // } else {
+                //     $this->addError('remote_get_failed', __('Could not get remote file.', 'really-simple-csv-importer'));
+                // }
+
+                // download the file 
+                file_put_contents($file, fopen($url, 'r'));
+
+                // extract file content 
+                $path = pathinfo(realpath($file), PATHINFO_DIRNAME); // get the absolute path to $file (leave it as it is)
+        
+                $zip = new ZipArchive;
+                $res = $zip->open($file);
+        
+                if ($res === TRUE) {
+                    $zip->extractTo($path);
+                    $zip->close();
+
+                    $data["media_files"] = list_files( $path, 100, array() );
+                    echo "<strong>$file</strong> extracted to <strong>$path</strong><br>";
+                    if ($delete == "yes") { 
+                        unlink($file); 
+                    } else { 
+                        echo "remember to delete <strong>$file</strong> & <strong>$script</strong>!"; 
+                    }
+            
                 } else {
-                    $this->addError('remote_get_failed', __('Could not get remote file.', 'really-simple-csv-importer'));
+                    echo "Couldn't open $file";
                 }
+                
+                return '';
             } elseif (is_wp_error($response)) {
                 $this->addError($response->get_error_code(), $response->get_error_message());
             }
         }
         
-        return '';
     }
     
     /**
