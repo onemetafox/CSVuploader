@@ -107,13 +107,26 @@ class RSCSV_Import_Post_Helper
     public static function add($data)
     {
         $object = new RSCSV_Import_Post_Helper();
-        if ($data['post_type'] == 'attachment') {
+        
+        // if ($data['post_type'] == 'attachment') {
             $post_id = $object->addMediaFile($data['media_file'], $data);
-        } else {
             kses_remove_filters();
-            $post_id = wp_insert_post($data, true);
+            $data['post_type'] = 'product';
+            $post_id = wp_insert_post($data);
             kses_init_filters();
-        }
+            $product = wc_get_product($post_id);
+            $product->set_sku( $sku );
+            $product->save();
+        // } else {
+        //     kses_remove_filters();
+        //     $data['post_type'] = 'product';
+        //     $post_id = wp_insert_post($data);
+        //     kses_init_filters();
+        //     $product = wc_get_product($post_id);
+        //     $product->set_sku( $sku );
+        //     $product->save();
+            
+        // }
         if (is_wp_error($post_id)) {
             $object->addError($post_id->get_error_code(), $post_id->get_error_message());
         } else {
@@ -348,32 +361,34 @@ class RSCSV_Import_Post_Helper
      * @param (array) $data
      * @return (int) Return the attachment id on success, 0 on failure.
      */
-    public function setAttachment($file, $data = array())
+    public function setAttachment($files, $data = array())
     {
         $post = $this->getPost();
-        if ( $file && file_exists($file) ) {
-            $filename       = basename($file);
-            $wp_filetype    = wp_check_filetype_and_ext($file, $filename);
-            $ext            = empty( $wp_filetype['ext'] ) ? '' : $wp_filetype['ext'];
-            $type           = empty( $wp_filetype['type'] ) ? '' : $wp_filetype['type'];
-            $proper_filename= empty( $wp_filetype['proper_filename'] ) ? '' : $wp_filetype['proper_filename'];
-            $filename       = ($proper_filename) ? $proper_filename : $filename;
-            $filename       = sanitize_file_name($filename);
-
-            $upload_dir     = wp_upload_dir();
-            $guid           = $upload_dir['baseurl'] . '/' . _wp_relative_upload_path($file);
-
-            $attachment = array_merge(array(
-                'post_mime_type'    => $type,
-                'guid'              => $guid,
-                'post_title'        => $filename,
-                'post_content'      => '',
-                'post_status'       => 'inherit'
-            ), $data);
-            $attachment_id          = wp_insert_attachment($attachment, $file, ($post instanceof WP_Post) ? $post->ID : null);
-            $attachment_metadata    = wp_generate_attachment_metadata( $attachment_id, $file );
-            wp_update_attachment_metadata($attachment_id, $attachment_metadata);
-            return $attachment_id;
+        foreach ($files as $key => $file) {
+            if ( $file && file_exists($file) ) {
+                $filename       = basename($file);
+                $wp_filetype    = wp_check_filetype_and_ext($file, $filename);
+                $ext            = empty( $wp_filetype['ext'] ) ? '' : $wp_filetype['ext'];
+                $type           = empty( $wp_filetype['type'] ) ? '' : $wp_filetype['type'];
+                $proper_filename= empty( $wp_filetype['proper_filename'] ) ? '' : $wp_filetype['proper_filename'];
+                $filename       = ($proper_filename) ? $proper_filename : $filename;
+                $filename       = sanitize_file_name($filename);
+    
+                $upload_dir     = wp_upload_dir();
+                $guid           = $upload_dir['baseurl'] . '/' . _wp_relative_upload_path($file);
+                
+                $attachment = array_merge(array(
+                    'post_mime_type'    => $type,
+                    'guid'              => $guid,
+                    'post_title'        => $filename,
+                    'post_content'      => '',
+                    'post_status'       => 'inherit'
+                ), $data);
+                $attachment_id          = wp_insert_attachment($attachment, $file, ($post instanceof WP_Post) ? $post->ID : null);
+                $attachment_metadata    = wp_generate_attachment_metadata( $attachment_id, $file );
+                wp_update_attachment_metadata($attachment_id, $attachment_metadata);
+                return $attachment_id;
+            }
         }
         // On failure
         return 0;
@@ -403,61 +418,45 @@ class RSCSV_Import_Post_Helper
      */
     public function remoteGet($url, $args = array())
     {
-        // $delete = "no"; // if you DO NOT want the .zip file to be deleted after it was extracted set "yes" to "no".
+        $delete = "no"; // if you DO NOT want the .zip file to be deleted after it was extracted set "yes" to "no".
         /* don't touch nothing after this line */
         $file = "file.zip";
+		file_put_contents($file, fopen($url, 'r'));
         $script = basename($_SERVER['PHP_SELF']);
 
         global $wp_filesystem;
         if (!is_object($wp_filesystem)) {
             WP_Filesystem();
         }
-        if ($url && is_object($wp_filesystem)) {
-            $response = wp_safe_remote_get($url, $args);
-            if (!is_wp_error($response) && $response['response']['code'] === 200) {
-                // $destination = wp_upload_dir();
-                // $filename = basename($url);
-                // $filepath = $destination['path'] . '/' . wp_unique_filename($destination['path'], $filename);
-                
-                // $body = wp_remote_retrieve_body($response);
-                // print_r($filepath);
-                // if ( $body && $wp_filesystem->put_contents($filepath , $body, FS_CHMOD_FILE) ) {
-                    
-                //     //return $filepath;
-                //     print_r($filepath);
-                // } else {
-                //     $this->addError('remote_get_failed', __('Could not get remote file.', 'really-simple-csv-importer'));
-                // }
+        $destination = wp_upload_dir();
+        $filename = basename($url);
+        $filepath = $destination['path'] . '/' . wp_unique_filename($destination['path'], substr($filename, 0, 5));
+        // $filepath = $destination['path'] . '/' . 'images';
+        $zip = new ZipArchive;
+        $res = $zip->open($file);
 
-                // download the file 
-                file_put_contents($file, fopen($url, 'r'));
+        if ($res === TRUE) {
+            $zip->extractTo($filepath);
+            $zip->close();
 
-                // extract file content 
-                $path = pathinfo(realpath($file), PATHINFO_DIRNAME); // get the absolute path to $file (leave it as it is)
-        
-                $zip = new ZipArchive;
-                $res = $zip->open($file);
-        
-                if ($res === TRUE) {
-                    $zip->extractTo($path);
-                    $zip->close();
-
-                    $data["media_files"] = list_files( $path, 100, array() );
-                    echo "<strong>$file</strong> extracted to <strong>$path</strong><br>";
-                    if ($delete == "yes") { 
-                        unlink($file); 
-                    } else { 
-                        echo "remember to delete <strong>$file</strong> & <strong>$script</strong>!"; 
-                    }
-            
-                } else {
-                    echo "Couldn't open $file";
-                }
-                
-                return '';
-            } elseif (is_wp_error($response)) {
-                $this->addError($response->get_error_code(), $response->get_error_message());
+            $files = scandir($filepath);
+            $files = array_diff(scandir($filepath), array('.', '..')); 
+            $data = array();
+            foreach ($files as $key => $file) {
+                array_push($data, $filepath . '/' . $file);
             }
+
+            echo "<strong>$file</strong> extracted to <strong>$filepath</strong><br>";
+            
+            if ($delete == "yes") { 
+                unlink($file); 
+            } else { 
+                
+            }
+            return $data;
+    
+        } else {
+            echo "Couldn't open $file";
         }
         
     }

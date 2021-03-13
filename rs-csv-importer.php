@@ -199,7 +199,7 @@ class RS_CSV_Importer extends WP_Importer {
 				} else {
 					echo __('Note: Please include post_type value if that is possible.', 'really-simple-csv-importer').'<br>';
 				}
-				$post['post_type'] = "attachment";
+				$post['post_type'] = "product";
 				
 				// (int) post id
 				$post_id = $h->get_data($this,$data,'ID');
@@ -348,22 +348,9 @@ class RS_CSV_Importer extends WP_Importer {
 				// add any other data to post meta
 				foreach ($data as $key => $value) {
 					if ($value !== false && isset($this->column_keys[$key])) {
-						// check if meta is custom taxonomy
-						// if (substr($this->column_keys[$key], 0, 4) == 'tax_') {
-						// 	// (string, comma divided) name of custom taxonomies 
-						// 	$customtaxes = preg_split("/,+/", $value);
-						// 	$taxname = substr($this->column_keys[$key], 4);
-						// 	$tax[$taxname] = array();
-						// 	foreach($customtaxes as $key => $value ) {
-						// 		$tax[$taxname][] = $value;
-						// 	}
-						// }
-						// else {
-							// $meta[$this->column_keys[$key]] = $value;
-						// }
 						if(strpos($this->column_keys[$key], "bullet") !== false){
 							if ($value) {
-								$post_content = $post_content . '<!-- wp:paragraph --><p>' . $value . '</p><!-- /wp:paragraph -->';
+								$post_content = $post_content . '<!-- wp:paragraph --><p><ul><li>' . $value . '</p><!-- /wp:paragraph -->';
 							}
 						} 
 						
